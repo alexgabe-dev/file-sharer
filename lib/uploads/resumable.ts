@@ -7,7 +7,7 @@ export type ResumableCallbacks = {
   onStatus: (status: UploadStatus) => void
   onProgress: (confirmedBytes: number) => void
   onFile: () => void
-  onError: (message: string) => void
+  onError: (message: string, retryable: boolean) => void
   onPersist: (record: PersistedUpload) => void
   onDeletePersist: () => void
   onDone: () => void
@@ -70,7 +70,17 @@ export class ResumableUpload {
       this.callbacks.onFile()
     } catch (error) {
       if (this.cancelled) return
-      this.callbacks.onError(error instanceof Error ? error.message : 'Upload failed')
+      const message = error instanceof Error ? error.message : 'Upload failed'
+      const terminal = error instanceof ApiError && !isRetryableStatus(error.status)
+      if (terminal) {
+        // Permanently rejected (unsupported type, too large, quota, etc.):
+        // clean the server session and local recovery record so it is never
+        // restored as a recoverable "paused" upload.
+        this.cancelled = true
+        if (this.uploadId) void cancelUpload(this.token, this.uploadId).catch(() => {})
+        this.callbacks.onDeletePersist()
+      }
+      this.callbacks.onError(message, !terminal)
       this.callbacks.onStatus('failed')
     } finally {
       this.callbacks.onDone()

@@ -7,6 +7,8 @@ import { createId, fileKindFor } from './utils'
 import { HttpFileSpaceRepository } from './http-repository'
 import { ResumableUpload } from '@/lib/uploads/resumable'
 import { deleteUpload, getUploadBlob, getUploadRecords, putUploadBlob, putUploadRecord, type PersistedUpload } from '@/lib/uploads/idb'
+import { unsupportedFileReason } from '@/lib/uploads/validate'
+import { cancelUpload as cancelUploadSession } from '@/lib/api/client'
 
 const MAX_CONCURRENT_UPLOADS = 3
 const CHUNK_CONCURRENCY = 3
@@ -82,7 +84,7 @@ export function useFileSpace(remoteToken?: string) {
         void repository.refreshFiles().then(() => refresh())
         window.setTimeout(() => removeItem(item.id), 1200)
       },
-      onError: (message) => updateItem(item.id, { status: 'failed', error: message }),
+      onError: (message, retryable) => updateItem(item.id, { status: 'failed', error: message, retryable }),
       onPersist: (next) => { void putUploadRecord(next).catch(() => {}) },
       onDeletePersist: () => { void deleteUpload(record.localId).catch(() => {}) },
       onDone: () => {
@@ -124,14 +126,23 @@ export function useFileSpace(remoteToken?: string) {
   }, [pump])
 
   const addFiles = useCallback((list: FileList | File[], folderId: string | null) => {
-    const entries: PendingUpload[] = Array.from(list).map((file) => {
+    const files = Array.from(list)
+    if (files.length === 0) return
+    const entries: PendingUpload[] = []
+    const rejected: UploadItem[] = []
+    for (const file of files) {
+      const reason = unsupportedFileReason(file.name)
+      if (reason) {
+        // Never persist unsupported files: they must not become recoverable.
+        rejected.push({ id: createId('upload'), name: file.name, sizeBytes: file.size, kind: fileKindFor(file), progress: 0, status: 'failed', folderId, error: reason, retryable: false })
+        continue
+      }
       const id = createId('upload')
       const item: UploadItem = { id, name: file.name, sizeBytes: file.size, kind: fileKindFor(file), progress: 0, status: 'queued', folderId }
       const record: PersistedUpload = { localId: id, uploadId: null, token: remoteToken ?? '', name: file.name, sizeBytes: file.size, kind: item.kind, folderId, lastModified: file.lastModified, chunkSizeBytes: 0, totalChunks: 0, receivedChunks: [], createdAt: Date.now() }
-      return { item, file, record }
-    })
-    if (entries.length === 0) return
-    setQueue((items) => [...entries.map((entry) => entry.item), ...items])
+      entries.push({ item, file, record })
+    }
+    setQueue((items) => [...rejected, ...entries.map((entry) => entry.item), ...items])
     if (remoteToken) {
       entries.forEach((entry) => {
         void putUploadBlob(entry.item.id, entry.file).catch(() => {})
@@ -153,6 +164,13 @@ export function useFileSpace(remoteToken?: string) {
       return
     }
     const name = record?.name ?? (blob as File).name ?? 'file'
+    const reason = unsupportedFileReason(name)
+    if (reason) {
+      updateItem(id, { status: 'failed', error: reason, retryable: false })
+      if (record?.uploadId) void cancelUploadSession(remoteToken, record.uploadId).catch(() => {})
+      void deleteUpload(id).catch(() => {})
+      return
+    }
     const item: UploadItem = { id, name, sizeBytes: blob.size, kind: record?.kind ?? fileKindFor(blob as File), progress: 0, status: 'queued', folderId: record?.folderId ?? null }
     updateItem(id, { status: 'queued', progress: 0, error: undefined })
     const finalRecord: PersistedUpload = record ?? { localId: id, uploadId: null, token: remoteToken, name, sizeBytes: blob.size, kind: item.kind, folderId: item.folderId, lastModified: (blob as File).lastModified ?? 0, chunkSizeBytes: 0, totalChunks: 0, receivedChunks: [], createdAt: Date.now() }
@@ -166,7 +184,15 @@ export function useFileSpace(remoteToken?: string) {
     if (engine) engine.cancel()
     engines.current.delete(id)
     setQueue((items) => items.filter((item) => item.id !== id))
-  }, [])
+    // Always clean the persisted recovery record and any lingering server
+    // session, even when there is no in-memory engine (restored "paused" item).
+    if (!remoteToken) return
+    void getUploadRecords().then((records) => {
+      const record = records.find((entry) => entry.localId === id)
+      if (record?.uploadId) void cancelUploadSession(remoteToken, record.uploadId).catch(() => {})
+    }).catch(() => {})
+    void deleteUpload(id).catch(() => {})
+  }, [remoteToken])
 
   const pauseUpload = useCallback((id: string) => {
     engines.current.get(id)?.pause()
@@ -184,9 +210,15 @@ export function useFileSpace(remoteToken?: string) {
 
   const reselectFile = useCallback(async (id: string, file: File) => {
     if (!remoteToken) return
+    const reason = unsupportedFileReason(file.name)
+    if (reason) {
+      updateItem(id, { status: 'failed', error: reason, retryable: false })
+      void deleteUpload(id).catch(() => {})
+      return
+    }
     const record = (await getUploadRecords()).find((entry) => entry.localId === id)
     if (record && (record.name !== file.name || record.sizeBytes !== file.size)) {
-      updateItem(id, { status: 'failed', error: 'This file does not match the original upload.' })
+      updateItem(id, { status: 'failed', error: 'This file does not match the original upload.', retryable: false })
       return
     }
     void putUploadBlob(id, file).catch(() => {})
@@ -210,14 +242,13 @@ export function useFileSpace(remoteToken?: string) {
   }, [queue, restoreAndStart])
 
   const retryFailed = useCallback(() => {
-    queue.filter((item) => item.status === 'failed').forEach((item) => { void restoreAndStart(item.id).catch(() => {}) })
+    queue.filter((item) => item.status === 'failed' && item.retryable !== false).forEach((item) => { void restoreAndStart(item.id).catch(() => {}) })
   }, [queue, restoreAndStart])
 
   const cancelFailed = useCallback(() => {
     const failedIds = queue.filter((item) => item.status === 'failed').map((item) => item.id)
-    failedIds.forEach((id) => { void deleteUpload(id).catch(() => {}) })
-    setQueue((items) => items.filter((item) => !failedIds.includes(item.id)))
-  }, [queue])
+    failedIds.forEach((id) => cancelUpload(id))
+  }, [queue, cancelUpload])
 
   // Restore persisted uploads for this space on load (offer manual resume).
   useEffect(() => {
@@ -227,10 +258,16 @@ export function useFileSpace(remoteToken?: string) {
       if (!active) return
       const mine = records.filter((record) => record.token === remoteToken)
       if (mine.length === 0) return
-      void Promise.all(mine.map((record) => getUploadBlob(record.localId))).then((blobs) => {
+      // Drop unsupported records so they never resurrect as recoverable "paused" uploads.
+      mine.filter((record) => unsupportedFileReason(record.name)).forEach((record) => {
+        void deleteUpload(record.localId).catch(() => {})
+      })
+      const recoverable = mine.filter((record) => !unsupportedFileReason(record.name))
+      if (recoverable.length === 0) return
+      void Promise.all(recoverable.map((record) => getUploadBlob(record.localId))).then((blobs) => {
         if (!active) return
         setQueue((items) => {
-          const restored: UploadItem[] = mine.map((record, index) => {
+          const restored: UploadItem[] = recoverable.map((record, index) => {
             const hasBlob = Boolean(blobs[index])
             return {
               id: record.localId,

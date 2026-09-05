@@ -10,5 +10,5 @@
     "declaration": false,
     "sourceMap": false
   },
-  "include": ["../lib/uploads/math.ts", "../lib/uploads/math.test.ts"]
+  "include": ["../lib/uploads/math.ts", "../lib/uploads/math.test.ts", "../lib/uploads/validate.ts", "../lib/uploads/validate.test.ts"]
 }

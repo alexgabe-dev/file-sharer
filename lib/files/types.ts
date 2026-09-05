@@ -32,6 +32,8 @@ export type UploadItem = {
   status: UploadStatus
   folderId: string | null
   error?: string
+  /** For `failed` items: whether a Retry could plausibly succeed. */
+  retryable?: boolean
 }
 
 export type FileSort = 'Newest' | 'Oldest' | 'Name' | 'Largest'
