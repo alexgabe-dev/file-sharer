@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowRight, Check, CheckCircle2, ChevronRight, Download, Grid2X2, List, Play, Search, Share2, Sparkles, UploadCloud } from 'lucide-react'
 import { AppHeader, ConfirmDialog, FolderNavigation, NewFolderDialog, Toast, UploadQueue } from '@/components/shared-files/chrome'
 import { FileViewer } from '@/components/shared-files/viewer'
@@ -52,6 +52,37 @@ function AuthenticatedApp({ remoteToken }: { remoteToken?: string }) {
   const targetFolder = activeFolderId === 'all' ? null : activeFolderId
   const openReselect = (id: string) => { reselectTargetRef.current = id; reselectRef.current?.click() }
 
+  // Gallery navigation within the currently visible collection.
+  const viewerIndex = selected ? visibleFiles.findIndex((file) => file.id === selected.id) : -1
+  const viewerHasPrevious = viewerIndex > 0
+  const viewerHasNext = viewerIndex >= 0 && viewerIndex < visibleFiles.length - 1
+  const viewerPrevious = viewerHasPrevious ? visibleFiles[viewerIndex - 1] : undefined
+  const viewerNext = viewerHasNext ? visibleFiles[viewerIndex + 1] : undefined
+  const goToPreviousFile = () => { if (viewerHasPrevious) setSelected(visibleFiles[viewerIndex - 1]) }
+  const goToNextFile = () => { if (viewerHasNext) setSelected(visibleFiles[viewerIndex + 1]) }
+
+  // Keep the canonical URL (/f/:slug) in sync with the viewer overlay using
+  // the History API, without unmounting the gallery (preserves browsing state).
+  const viewerPushedRef = useRef(false)
+  useEffect(() => {
+    if (!selected?.slug) return
+    if (viewerPushedRef.current) window.history.replaceState({ viewer: true }, '', `/f/${selected.slug}`)
+    else { window.history.pushState({ viewer: true }, '', `/f/${selected.slug}`); viewerPushedRef.current = true }
+  }, [selected?.slug])
+  useEffect(() => {
+    if (!selected) return
+    const onPopState = () => {
+      if (viewerPushedRef.current) { viewerPushedRef.current = false; setSelected(null) }
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [selected])
+  const closeViewer = () => {
+    if (viewerPushedRef.current) { viewerPushedRef.current = false; window.history.back() }
+    setSelected(null)
+    window.setTimeout(() => viewerReturnFocusRef.current?.focus(), 0)
+  }
+
   if (space.remoteError) return <main className="flex min-h-screen items-center justify-center bg-background p-6 text-center text-foreground"><div><h1 className="text-2xl font-semibold">Shared space not found</h1><p className="mt-2 text-muted-foreground">This link is invalid or no longer available.</p></div></main>
   if (space.remoteLoading) return <main className="min-h-screen bg-background" />
   return <main className="min-h-screen bg-background text-foreground">
@@ -74,7 +105,7 @@ function AuthenticatedApp({ remoteToken }: { remoteToken?: string }) {
     <input ref={inputRef} type="file" multiple className="sr-only" onChange={(event) => { if (event.target.files) space.addFiles(event.target.files, targetFolder); event.target.value = '' }} />
     <input ref={reselectRef} type="file" className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; const target = reselectTargetRef.current; reselectTargetRef.current = null; if (file && target) void space.reselectFile(target, file).catch(() => {}); event.target.value = '' }} />
     <Toast message={toast} /><NewFolderDialog open={newFolderOpen} onOpenChange={setNewFolderOpen} onCreate={async (name) => { try { const folder = await space.createFolder(name); selectFolder(folder.id); notify(`Created ${folder.name}`) } catch (err) { notify(err instanceof Error ? err.message : 'Something went wrong') } }} /><ConfirmDialog open={confirmDelete} onOpenChange={setConfirmDelete} trash={showingTrash} count={selectedIds.length} onConfirm={async () => { try { if (showingTrash) { await space.permanentlyDelete(selectedIds) } else { const moved = await space.moveToTrash(selectedIds); notify(`${moved.length} moved to Trash`) }; setSelectedIds([]); setConfirmDelete(false) } catch (err) { notify(err instanceof Error ? err.message : 'Something went wrong') } }} />
-    {selected && <FileViewer file={selected} onClose={() => { setSelected(null); window.setTimeout(() => viewerReturnFocusRef.current?.focus(), 0) }} onShare={() => { void shareFile(selected).then(() => notify('Link copied')) }} onDownload={() => downloadFile(selected)} />}
+    {selected && <FileViewer file={selected} onClose={closeViewer} onShare={() => { void shareFile(selected).then(() => notify('Link copied')) }} onDownload={() => downloadFile(selected)} onPrevious={viewerHasPrevious ? goToPreviousFile : undefined} onNext={viewerHasNext ? goToNextFile : undefined} hasPrevious={viewerHasPrevious} hasNext={viewerHasNext} previousFile={viewerPrevious} nextFile={viewerNext} position={viewerIndex >= 0 ? { index: viewerIndex, total: visibleFiles.length } : undefined} />}
   </main>
 }
 
