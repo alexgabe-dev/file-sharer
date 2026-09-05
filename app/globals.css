@@ -1,0 +1,221 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+}
+
+:root {
+  color-scheme: light;
+  --background: oklch(0.985 0.006 88);
+  --foreground: oklch(0.18 0.015 75);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.18 0.015 75);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.18 0.015 75);
+  --primary: oklch(0.22 0.018 75);
+  --primary-foreground: oklch(0.98 0.006 88);
+  --secondary: oklch(0.945 0.012 84);
+  --secondary-foreground: oklch(0.25 0.015 75);
+  --muted: oklch(0.945 0.012 84);
+  --muted-foreground: oklch(0.53 0.02 75);
+  --accent: oklch(0.58 0.12 163);
+  --border: oklch(0.88 0.015 80);
+  --input: oklch(0.86 0.015 80);
+  --ring: oklch(0.58 0.12 163);
+  --destructive: oklch(0.58 0.18 28);
+  --radius: 0.7rem;
+}
+
+.dark {
+  color-scheme: dark;
+  --background: oklch(0.16 0.012 75);
+  --foreground: oklch(0.96 0.008 88);
+  --card: oklch(0.205 0.014 75);
+  --card-foreground: oklch(0.96 0.008 88);
+  --popover: oklch(0.205 0.014 75);
+  --popover-foreground: oklch(0.96 0.008 88);
+  --primary: oklch(0.92 0.01 88);
+  --primary-foreground: oklch(0.18 0.015 75);
+  --secondary: oklch(0.26 0.014 75);
+  --secondary-foreground: oklch(0.96 0.008 88);
+  --muted: oklch(0.26 0.014 75);
+  --muted-foreground: oklch(0.72 0.015 80);
+  --accent: oklch(0.68 0.13 163);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 16%);
+  --ring: oklch(0.68 0.13 163);
+  --destructive: oklch(0.7 0.16 28);
+}
+
+@layer base {
+  * { @apply border-border outline-ring/50; }
+  html { @apply bg-background; scrollbar-width: none; }
+  html::-webkit-scrollbar, body::-webkit-scrollbar { display: none; }
+  body { @apply bg-background text-foreground font-sans antialiased; scrollbar-width: none; }
+  button, input, select { font: inherit; }
+}
+
+/* Keep the quiet mobile canvas free from browser chrome while preserving scroll. */
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+@keyframes mobile-sheen {
+  0% { transform: translateX(-110%); }
+  55%, 100% { transform: translateX(110%); }
+}
+
+.mobile-sheen { position: relative; isolation: isolate; overflow: hidden; }
+.mobile-sheen::before { content: ''; position: absolute; inset: 0; z-index: -1; width: 45%; background: linear-gradient(105deg, transparent, color-mix(in oklab, var(--card) 38%, transparent), transparent); animation: mobile-sheen 4.8s ease-in-out infinite; pointer-events: none; }
+
+@media (max-width: 767px) {
+  .mobile-safe-gutter { padding-inline: max(1rem, env(safe-area-inset-left)); padding-right: max(1rem, env(safe-area-inset-right)); }
+  .mobile-card-shadow { box-shadow: 0 16px 42px color-mix(in oklab, var(--primary) 7%, transparent); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-sheen::before { animation: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}
+
+.safe-bottom { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+
+@keyframes drop-particle-one {
+  0%, 100% { transform: translate3d(-12px, 14px, 0) rotate(-12deg); opacity: 0; }
+  18%, 72% { opacity: 1; }
+  50% { transform: translate3d(4px, -42px, 0) rotate(10deg); }
+}
+
+@keyframes drop-particle-two {
+  0%, 100% { transform: translate3d(8px, 18px, 0) rotate(8deg); opacity: 0; }
+  20%, 76% { opacity: 1; }
+  52% { transform: translate3d(50px, -30px, 0) rotate(-14deg); }
+}
+
+@keyframes drop-particle-three {
+  0%, 100% { transform: translate3d(0, 24px, 0) rotate(14deg); opacity: 0; }
+  24%, 78% { opacity: 1; }
+  54% { transform: translate3d(-52px, -24px, 0) rotate(-8deg); }
+}
+
+@keyframes drop-particle-four {
+  0%, 100% { transform: translate3d(14px, 8px, 0) rotate(-8deg); opacity: 0; }
+  22%, 74% { opacity: 1; }
+  50% { transform: translate3d(-64px, -38px, 0) rotate(12deg); }
+}
+
+.drop-particle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  margin: -1rem;
+  border: 1px solid color-mix(in oklab, var(--accent) 35%, transparent);
+  border-radius: 0.55rem;
+  background: color-mix(in oklab, var(--card) 88%, transparent);
+  color: var(--accent);
+  box-shadow: 0 8px 20px color-mix(in oklab, var(--primary) 8%, transparent);
+}
+
+.is-dragging {
+  animation: drop-border-pulse 1.8s ease-in-out infinite;
+}
+
+.is-dragging::after {
+  content: '';
+  position: absolute;
+  inset: 0.4rem;
+  border: 1px solid color-mix(in oklab, var(--accent) 28%, transparent);
+  border-radius: 0.65rem;
+  pointer-events: none;
+  animation: drop-border-pulse 1.8s ease-in-out infinite reverse;
+}
+
+.drop-particle-one { animation: drop-particle-one 2.4s ease-in-out infinite; }
+.drop-particle-two { animation: drop-particle-two 2.1s 0.2s ease-in-out infinite; }
+.drop-particle-three { animation: drop-particle-three 2.6s 0.1s ease-in-out infinite; }
+.drop-particle-four { animation: drop-particle-four 2.2s 0.35s ease-in-out infinite; }
+
+@keyframes drop-border-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--accent) 0%, transparent); }
+  50% { box-shadow: 0 0 0 6px color-mix(in oklab, var(--accent) 10%, transparent); }
+}
+
+@keyframes folder-arrive {
+  0% { opacity: 0; transform: translateY(7px) scale(.98); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes queue-arrive {
+  0% { opacity: 0; transform: translateX(10px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes toast-arrive {
+  0% { opacity: 0; transform: translate(-50%, 12px) scale(.96); }
+  100% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+
+.folder-nav-item { animation: folder-arrive .45s both; }
+.folder-nav-item:nth-child(2) { animation-delay: .04s; }
+.folder-nav-item:nth-child(3) { animation-delay: .08s; }
+.folder-nav-item:nth-child(4) { animation-delay: .12s; }
+.file-card { animation: folder-arrive .5s both; }
+.file-card:nth-child(2) { animation-delay: .04s; }
+.file-card:nth-child(3) { animation-delay: .08s; }
+.file-card:nth-child(4) { animation-delay: .12s; }
+.queue-item { animation: queue-arrive .4s both; }
+.toast-pop { animation: toast-arrive .35s cubic-bezier(.22, 1, .36, 1) both; }
+.confirm-pop { animation: confirm-arrive .4s cubic-bezier(.22, 1, .36, 1) both; }
+@keyframes confirm-arrive { 0% { opacity: 0; transform: translateY(12px) scale(.94); filter: blur(5px); } 60% { transform: translateY(-3px) scale(1.01); } 100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); } }
+.progress-shine { position: relative; overflow: hidden; }
+.progress-shine::after { content: ''; position: absolute; inset: 0; transform: translateX(-100%); background: color-mix(in oklab, var(--card) 45%, transparent); animation: progress-glint 1.4s ease-in-out infinite; }
+@keyframes progress-glint { 100% { transform: translateX(100%); } }
+
+.selection-check { opacity: 0; transform: scale(.8) translateY(4px); border-color: color-mix(in oklab, var(--primary-foreground) 75%, transparent); background: color-mix(in oklab, var(--primary) 65%, transparent); backdrop-filter: blur(10px); }
+.file-card:hover .selection-check, .selection-check.selected, .file-card.is-selected .selection-check { opacity: 1; transform: scale(1) translateY(0); }
+.selection-check.selected { background: var(--accent); border-color: var(--accent); animation: selection-pop .36s cubic-bezier(.22, 1, .36, 1) both; }
+.file-card.is-selected > button:nth-of-type(2) { box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 30%, transparent), 0 18px 38px color-mix(in oklab, var(--accent) 16%, transparent); }
+.bulk-toolbar { animation: bulk-toolbar-arrive .5s cubic-bezier(.22, 1, .36, 1) both; transform-origin: center top; }
+.bulk-toolbar button { transition: transform .25s cubic-bezier(.22, 1, .36, 1), background-color .2s ease, color .2s ease; }
+.bulk-toolbar button:active { transform: scale(.94); }
+@keyframes selection-pop { 0% { transform: scale(.65) rotate(-12deg); } 65% { transform: scale(1.14) rotate(4deg); } 100% { transform: scale(1) rotate(0); } }
+@keyframes bulk-toolbar-arrive { 0% { opacity: 0; transform: translateY(-10px) scale(.97); filter: blur(4px); } 100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); } }
+@media (max-width: 767px) {
+  .selection-check { opacity: 1; transform: scale(1); }
+  .bulk-toolbar { position: sticky; top: 5.25rem; z-index: 10; margin-inline: -0.25rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bulk-toolbar, .selection-check.selected { animation: none; }
+}

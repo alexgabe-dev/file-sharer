@@ -1,0 +1,44 @@
+# /etc/systemd/system/shared-files.service
+# Install: sudo cp docs/shared-files.service.example /etc/systemd/system/shared-files.service
+#          sudo systemctl daemon-reload
+#          sudo systemctl enable --now shared-files
+#
+# Adjust User, WorkingDirectory, EnvironmentFile, and paths to your deployment.
+
+[Unit]
+Description=Shared Files Fastify backend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Run as a dedicated, non-root service user (see docs/OPERATIONS.md).
+User=shared-files
+Group=shared-files
+WorkingDirectory=/opt/shared-files
+EnvironmentFile=/opt/shared-files/backend/.env
+# Use the compiled backend (npm run backend:build) in production.
+ExecStart=/usr/bin/node backend/dist/server.js
+Restart=on-failure
+RestartSec=5
+
+# Sensible resource bounds for Sharp/FFmpeg media processing.
+# Tune MemoryMax for your VPS; keep it above what a single phone-video poster needs.
+MemoryMax=2G
+TasksMax=256
+Nice=10
+
+# systemd sends SIGTERM first; the backend drains in-flight requests and closes
+# SQLite within SHUTDOWN_GRACE_PERIOD_MS, then exits. systemd SIGKILLs after TimeoutStopSec.
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+# Harden the unit.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/shared-files
+
+[Install]
+WantedBy=multi-user.target
