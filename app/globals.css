@@ -107,6 +107,8 @@
 
 .safe-bottom { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
 
+.mobile-px { padding-left: max(1rem, env(safe-area-inset-left)); padding-right: max(1rem, env(safe-area-inset-right)); }
+
 .is-dragging {
   animation: drop-border-pulse 1.8s ease-in-out infinite;
 }
