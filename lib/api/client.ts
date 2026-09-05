@@ -80,6 +80,13 @@ export function downloadUrl(token: string, fileId: string) {
   return `${url}?download=1`
 }
 
+/** Server-side ZIP of the given file ids (streamed as an attachment). */
+export function downloadZipUrl(token: string, ids: string[]) {
+  if (!baseUrl) return ''
+  const query = ids.map((id) => encodeURIComponent(id)).join(',')
+  return `${baseUrl}/api/v1/spaces/${encodeURIComponent(token)}/download?ids=${query}`
+}
+
 /** Canonical frontend URL for a file slug (the human share URL). */
 export function fileUrl(slug: string) {
   const origin = typeof window !== 'undefined' ? window.location.origin : ''

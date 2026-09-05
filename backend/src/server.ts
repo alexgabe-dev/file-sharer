@@ -38,8 +38,8 @@ type FileRow = {
 
 const FILE_SELECT = `SELECT f.id, f.public_id, f.space_id, f.folder_id, f.original_name, f.storage_key, f.mime_type, f.size_bytes, f.uploaded_at, f.status, f.width, f.height, f.duration_seconds, f.thumbnail_storage_key, f.deleted_at, f.slug, fol.public_id AS folder_public_id FROM files f LEFT JOIN folders fol ON fol.id = f.folder_id`
 
-/** Strip path separators and control characters from a ZIP entry name. */
-const zipEntryName = (name: string) => (name.replace(/[\\/\x00-\x1f]/g, '_').replace(/^\.+/, '').trim() || 'file').slice(0, 200)
+/** Strip path separators and leading dots from a ZIP entry name. */
+const zipEntryName = (name: string) => (name.replace(/[\\/]/g, '_').replace(/^\.+/, '').trim() || 'file').slice(0, 200)
 
 export function buildServer(overrides: Partial<typeof config> = {}) {
   const settings = { ...config, ...overrides }
@@ -310,7 +310,7 @@ export function buildServer(overrides: Partial<typeof config> = {}) {
     const placeholders = ids.map(() => '?').join(',')
     const rows = db.prepare(`${FILE_SELECT} WHERE f.space_id = ? AND f.public_id IN (${placeholders}) AND f.deleted_at IS NULL`).all(found.id, ...ids) as FileRow[]
     const byId = new Map(rows.map((row) => [row.public_id, row]))
-    const files = ids.map((id) => byId.get(id)).filter((row): row is FileRow => Boolean(row) && storage.exists(row.storage_key))
+    const files = ids.map((id) => byId.get(id)).filter((row): row is FileRow => row !== undefined && storage.exists(row.storage_key))
     if (files.length === 0) throw new ApiError(404, 'FILE_NOT_FOUND', 'None of the requested files are available.')
 
     // De-duplicate entry names so the archive never contains two identical paths.

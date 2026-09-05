@@ -18,6 +18,7 @@ Reads:
 - `GET /api/v1/spaces/:token/files/:publicFileId`
 - `GET /api/v1/spaces/:token/files/:publicFileId/content`
 - `GET /api/v1/spaces/:token/files/:publicFileId/thumbnail`
+- `GET /api/v1/spaces/:token/download?ids=...` — stream a server-side ZIP of the selected files (auth required)
 
 Writes:
 - `POST /api/v1/auth/login` — verify the shared password, create a session, set cookies

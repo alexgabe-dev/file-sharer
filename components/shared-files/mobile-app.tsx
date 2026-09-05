@@ -32,13 +32,15 @@ type MobileAppProps = {
   onUpload: () => void
   onOpen: (file: SharedFile) => void
   onShare: (file: SharedFile) => void
+  onDownloadFile: (file: SharedFile) => void
+  onDownloadFiles: (ids: string[]) => void
   onReselect: (id: string) => void
   onCreateFolder: () => void
   onConfirmDelete: () => void
   notify: (message: string) => void
 }
 
-export function MobileApp({ space, visibleFiles, activeFolder, totalBytes, query, onQueryChange, sort, onSortChange, view, onViewChange, activeFolderId, showingTrash, selectedIds, onSelectFolder, onTrash, onToggleSelected, onToggleAll, onClearSelection, onUpload, onOpen, onShare, onReselect, onCreateFolder, onConfirmDelete, notify }: MobileAppProps) {
+export function MobileApp({ space, visibleFiles, activeFolder, totalBytes, query, onQueryChange, sort, onSortChange, view, onViewChange, activeFolderId, showingTrash, selectedIds, onSelectFolder, onTrash, onToggleSelected, onToggleAll, onClearSelection, onUpload, onOpen, onShare, onDownloadFile, onDownloadFiles, onReselect, onCreateFolder, onConfirmDelete, notify }: MobileAppProps) {
   const [searchOpen, setSearchOpen] = useState(false)
   const selecting = selectedIds.length > 0
   const title = showingTrash ? 'Trash' : activeFolderId === 'all' ? 'All files' : activeFolder.name
@@ -114,7 +116,7 @@ export function MobileApp({ space, visibleFiles, activeFolder, totalBytes, query
                   <p className="truncate text-sm font-medium">{file.name}</p>
                   <p className="text-xs text-muted-foreground">{formatSize(file.sizeBytes)} · {file.uploadedLabel}</p>
                 </div>
-                <button aria-label={`Copy link for ${file.name}`} onClick={(event) => { event.stopPropagation(); onShare(file) }} className="rounded-lg p-2 text-muted-foreground"><Share2 className="size-4" /></button>
+                <button aria-label={`Download ${file.name}`} onClick={(event) => { event.stopPropagation(); onDownloadFile(file) }} className="rounded-lg p-2 text-muted-foreground"><Download className="size-4" /></button><button aria-label={`Copy link for ${file.name}`} onClick={(event) => { event.stopPropagation(); onShare(file) }} className="rounded-lg p-2 text-muted-foreground"><Share2 className="size-4" /></button>
               </div>
             ))}
           </div>
@@ -134,7 +136,7 @@ export function MobileApp({ space, visibleFiles, activeFolder, totalBytes, query
                     <h3 className="truncate text-sm font-medium">{file.name}</h3>
                     <p className="mt-0.5 text-xs text-muted-foreground">{formatSize(file.sizeBytes)}</p>
                   </div>
-                  <button aria-label={`Copy link for ${file.name}`} onClick={() => onShare(file)} className="shrink-0 rounded-lg p-1.5 text-muted-foreground"><Share2 className="size-4" /></button>
+                  <button aria-label={`Download ${file.name}`} onClick={() => onDownloadFile(file)} className="shrink-0 rounded-lg p-1.5 text-muted-foreground"><Download className="size-4" /></button><button aria-label={`Copy link for ${file.name}`} onClick={() => onShare(file)} className="shrink-0 rounded-lg p-1.5 text-muted-foreground"><Share2 className="size-4" /></button>
                 </div>
               </article>
             ))}
@@ -154,7 +156,7 @@ export function MobileApp({ space, visibleFiles, activeFolder, totalBytes, query
                 <button onClick={handleRestore} className="flex h-10 items-center rounded-xl px-3 text-sm font-medium text-foreground">Restore</button>
               ) : (
                 <>
-                  <button onClick={() => notify(`Preparing ${selectedIds.length} files for download`)} aria-label="Download" className="flex size-10 items-center justify-center rounded-xl text-muted-foreground"><Download className="size-4" /></button>
+                  <button onClick={() => onDownloadFiles(selectedIds)} aria-label="Download" className="flex size-10 items-center justify-center rounded-xl text-muted-foreground"><Download className="size-4" /></button>
                   <button onClick={() => { navigator.clipboard?.writeText(window.location.href); notify('Share link copied') }} aria-label="Share" className="flex size-10 items-center justify-center rounded-xl text-muted-foreground"><Share2 className="size-4" /></button>
                 </>
               )}
