@@ -25,6 +25,7 @@ import { binaryAvailable } from './media/exec'
 import { createPasswordVerifier } from './auth/password'
 import { cleanupSessions, createSession, findSessionByHash, hashToken, isSessionValid, newCsrfToken, newSessionToken, revokeSession, touchSession } from './auth/sessions'
 import { backfillSlugs } from './slug'
+import archiver from 'archiver'
 
 type SpaceRow = { id: string; public_token: string; name: string; created_at: string; updated_at: string }
 type FileRow = {
@@ -36,6 +37,9 @@ type FileRow = {
 }
 
 const FILE_SELECT = `SELECT f.id, f.public_id, f.space_id, f.folder_id, f.original_name, f.storage_key, f.mime_type, f.size_bytes, f.uploaded_at, f.status, f.width, f.height, f.duration_seconds, f.thumbnail_storage_key, f.deleted_at, f.slug, fol.public_id AS folder_public_id FROM files f LEFT JOIN folders fol ON fol.id = f.folder_id`
+
+/** Strip path separators and control characters from a ZIP entry name. */
+const zipEntryName = (name: string) => (name.replace(/[\\/\x00-\x1f]/g, '_').replace(/^\.+/, '').trim() || 'file').slice(0, 200)
 
 export function buildServer(overrides: Partial<typeof config> = {}) {
   const settings = { ...config, ...overrides }
@@ -296,6 +300,42 @@ export function buildServer(overrides: Partial<typeof config> = {}) {
     }
     reply.header('Content-Length', String(size))
     return reply.send(storage.createReadStream(row.storage_key))
+  })
+
+  app.get('/api/v1/spaces/:token/download', async (request, reply) => {
+    const found = requireSpace((request.params as { token: string }).token)
+    const raw = (request.query as { ids?: string }).ids ?? ''
+    const ids = [...new Set(raw.split(',').map((id) => id.trim()).filter(Boolean))]
+    if (ids.length === 0 || ids.length > 500) throw new ApiError(400, 'INVALID_REQUEST', 'A valid list of file ids is required.')
+    const placeholders = ids.map(() => '?').join(',')
+    const rows = db.prepare(`${FILE_SELECT} WHERE f.space_id = ? AND f.public_id IN (${placeholders}) AND f.deleted_at IS NULL`).all(found.id, ...ids) as FileRow[]
+    const byId = new Map(rows.map((row) => [row.public_id, row]))
+    const files = ids.map((id) => byId.get(id)).filter((row): row is FileRow => Boolean(row) && storage.exists(row.storage_key))
+    if (files.length === 0) throw new ApiError(404, 'FILE_NOT_FOUND', 'None of the requested files are available.')
+
+    // De-duplicate entry names so the archive never contains two identical paths.
+    const used = new Set<string>()
+    const names = files.map((row) => {
+      const base = zipEntryName(row.original_name)
+      let candidate = base
+      let counter = 2
+      while (used.has(candidate)) candidate = `${base.slice(0, 180)} (${counter++})`
+      used.add(candidate)
+      return candidate
+    })
+
+    reply.hijack()
+    reply.raw.writeHead(200, {
+      'Content-Type': 'application/zip',
+      'Content-Disposition': contentDisposition('shared-files.zip', false),
+      'Cache-Control': 'private, max-age=0',
+    })
+    const archive = archiver('zip', { zlib: { level: 6 } })
+    archive.on('warning', (error) => { if (error.code !== 'ENOENT') request.log.warn({ err: error }, 'zip archive warning') })
+    archive.on('error', (error) => { request.log.error({ err: error }, 'zip archive failed'); reply.raw.destroy(error) })
+    archive.pipe(reply.raw)
+    for (let index = 0; index < files.length; index += 1) archive.append(storage.createReadStream(files[index].storage_key), { name: names[index] })
+    await archive.finalize()
   })
 
   app.get('/api/v1/spaces/:token/files/:publicFileId/thumbnail', async (request, reply) => {
